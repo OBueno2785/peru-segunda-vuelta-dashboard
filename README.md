@@ -51,6 +51,26 @@ npm run build      # build de producción -> dist/ (lo sirve el backend)
 - **📈 Evolución**: gráfico head-to-head del porcentaje de cada candidato a medida
   que avanza el escrutinio.
 
+## Despliegue (GitHub Pages)
+
+La página está publicada en:
+
+**https://obueno2785.github.io/peru-segunda-vuelta-dashboard/**
+
+Como GitHub Pages solo sirve estáticos, en producción el frontend lee JSON
+generados por `backend/build_static.py` (`frontend/public/data/*.json`) en vez de la API.
+
+El workflow `.github/workflows/deploy.yml` se ejecuta cada 30 minutos (cron),
+scrapea ONPE, regenera los JSON, acumula el histórico en `backend/data/historial.json`
+y redespliega el sitio automáticamente. Así la página queda siempre activa y al día.
+
+Para regenerar los datos a mano:
+
+```bash
+cd backend
+venv/Scripts/python.exe build_static.py
+```
+
 ## Fuente
 
 ONPE — Oficina Nacional de Procesos Electorales.

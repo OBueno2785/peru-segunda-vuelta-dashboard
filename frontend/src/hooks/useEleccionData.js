@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { PRESIDENCIAL_URL } from '../api';
 
 const POLL_INTERVAL = 5 * 60 * 1000; // 5 minutos
 
@@ -15,7 +16,7 @@ export function useEleccionData() {
     else { setLoading(true); setError(null); }
 
     try {
-      const r = await fetch('/api/presidencial');
+      const r = await fetch(`${PRESIDENCIAL_URL}?t=${Date.now()}`);
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const d = await r.json();
       setData(d);

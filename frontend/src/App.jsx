@@ -5,6 +5,7 @@ import PanelDetalle from './components/PanelDetalle';
 import ResumenNacional from './components/ResumenNacional';
 import GraficaEvolucion from './components/GraficaEvolucion';
 import { useEleccionData } from './hooks/useEleccionData';
+import { CAN_REFRESH } from './api';
 
 export default function App() {
   const [tab, setTab] = useState('mapa');
@@ -14,7 +15,9 @@ export default function App() {
   const { data, loading, error, refreshing, lastUpdate, refresh } = useEleccionData();
 
   const handleManualRefresh = useCallback(async () => {
-    try { await fetch('/api/refresh', { method: 'POST' }); } catch (_) {}
+    if (CAN_REFRESH) {
+      try { await fetch('/api/refresh', { method: 'POST' }); } catch (_) {}
+    }
     refresh();
   }, [refresh]);
 

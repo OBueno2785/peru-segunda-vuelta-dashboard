@@ -4,6 +4,7 @@ import {
   ReferenceLine, Legend,
 } from 'recharts';
 import { fmtPct, apellido } from '../utils';
+import { HISTORIAL_URL } from '../api';
 
 function horaCorta(ts) {
   const d = new Date(ts);
@@ -15,7 +16,7 @@ export default function GraficaEvolucion() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    fetch('/api/historial')
+    fetch(`${HISTORIAL_URL}?t=${Date.now()}`)
       .then(r => r.json())
       .then(d => setSnapshots(d.snapshots || []))
       .catch(e => setError(e.message));

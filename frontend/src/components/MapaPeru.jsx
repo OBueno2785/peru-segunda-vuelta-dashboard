@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { MapContainer, GeoJSON, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { normName, fmtPct } from '../utils';
+import { GEOJSON_URL } from '../api';
 
 function FitBounds({ geoJsonRef }) {
   const map = useMap();
@@ -19,7 +20,7 @@ export default function MapaPeru({ mapaData, onClickDep, depSeleccionado, leyend
   const geoJsonRef = useRef(null);
 
   useEffect(() => {
-    fetch('/peru-departamentos.geojson')
+    fetch(GEOJSON_URL)
       .then(r => r.json())
       .then(setGeoData)
       .catch(console.error);
