@@ -1,5 +1,9 @@
 anyio==4.13.0
 certifi==2026.2.25
+# Descarga/OCR de actas (scraper_actas.py, ocr_actas.py, proyeccion.py)
+PyMuPDF
+pillow
+easyocr
 click==8.3.2
 colorama==0.4.6
 fastapi==0.135.3

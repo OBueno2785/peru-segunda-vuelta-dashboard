@@ -3,3 +3,14 @@ __pycache__/
 *.pyc
 data/*.tmp*
 _discover_*
+
+# Actas descargadas (miles de archivos / PDFs pesados) y artefactos del scraper
+data/actas/
+data/actas_pdf/
+data/ocr_muestra/
+data/actas_progress.json
+data/proyeccion.json
+data/ocr_verificacion.json
+data/comparacion_ocr.csv
+scraper_actas.log
+scraper_full.out
