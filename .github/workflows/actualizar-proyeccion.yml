@@ -1,0 +1,58 @@
+name: Actualizar proyección (actas JEE)
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Cada 6 horas: descarga actas no contabilizadas y regenera la proyección.
+    - cron: "0 */6 * * *"
+
+# Necesita commitear el JSON de proyección al repo.
+permissions:
+  contents: write
+
+# No solapar corridas de la proyección entre sí.
+concurrency:
+  group: proyeccion
+  cancel-in-progress: false
+
+jobs:
+  proyeccion:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar deps ligeras (sin OCR/torch)
+        # La proyección solo necesita httpx (scraper) + fastapi (import de main.build_cache).
+        run: pip install httpx fastapi
+
+      - name: Descargar actas E/P (solo JSON, sin PDFs)
+        working-directory: backend
+        run: python scraper_actas.py --no-pdf
+
+      - name: Refrescar contabilizado al mismo momento
+        working-directory: backend
+        run: python -c "import asyncio, refresher; print('refresh ok =', asyncio.run(refresher.fetch_fresh()))"
+
+      - name: Regenerar proyección
+        working-directory: backend
+        run: python proyeccion.py
+
+      - name: Commitear proyección si cambió
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add frontend/public/data/proyeccion.json
+          if git diff --cached --quiet; then
+            echo "Proyección sin cambios."
+          else
+            git commit -m "chore(proyeccion): actualizar proyeccion ONPE"
+            # Reintegrar lo que el workflow de datos haya commiteado mientras tanto.
+            git pull --rebase origin main
+            git push
+          fi
