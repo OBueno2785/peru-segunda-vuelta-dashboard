@@ -1,6 +1,7 @@
 const TABS = [
   { id: 'mapa', label: '🗺️ Mapa' },
   { id: 'evolucion', label: '📈 Evolución' },
+  { id: 'proyeccion', label: '🔮 Proyección' },
 ];
 
 export default function Header({ tabActiva, onCambia }) {

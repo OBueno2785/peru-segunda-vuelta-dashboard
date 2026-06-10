@@ -4,6 +4,7 @@ import MapaPeru from './components/MapaPeru';
 import PanelDetalle from './components/PanelDetalle';
 import ResumenNacional from './components/ResumenNacional';
 import GraficaEvolucion from './components/GraficaEvolucion';
+import ProyeccionView from './components/ProyeccionView';
 import { useEleccionData } from './hooks/useEleccionData';
 import { CAN_REFRESH } from './api';
 
@@ -42,7 +43,9 @@ export default function App() {
         <span className="text-xs text-gray-500">
           {tab === 'mapa'
             ? 'Cada departamento se colorea según el candidato líder · intensidad = margen'
-            : 'Evolución temporal del head to head'}
+            : tab === 'evolucion'
+            ? 'Evolución temporal del head to head'
+            : 'Resultado proyectado: contabilizado + actas no computadas'}
         </span>
         <div className="ml-auto flex items-center gap-2 flex-shrink-0">
           {refreshing ? (
@@ -84,6 +87,12 @@ export default function App() {
       {tab === 'evolucion' && (
         <div className="flex flex-1 min-h-0">
           <GraficaEvolucion />
+        </div>
+      )}
+
+      {tab === 'proyeccion' && (
+        <div className="flex flex-1 min-h-0">
+          <ProyeccionView />
         </div>
       )}
 

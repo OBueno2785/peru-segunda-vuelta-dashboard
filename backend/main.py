@@ -321,6 +321,15 @@ def historial():
     return {"snapshots": _historial}
 
 
+@app.get("/api/proyeccion")
+def proyeccion():
+    """Proyección generada por proyeccion.py (contabilizado + actas E/P)."""
+    p = DATA_DIR / "proyeccion.json"
+    if not p.exists():
+        raise HTTPException(status_code=404, detail="Proyección no generada. Ejecuta proyeccion.py.")
+    return load_json(p)
+
+
 @app.post("/api/refresh")
 async def refresh():
     """Descarga datos frescos de ONPE y reconstruye el cache (atómico, con cooldown)."""

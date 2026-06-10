@@ -6,6 +6,7 @@ const BASE = import.meta.env.BASE_URL; // '/' en dev, '/peru-segunda-vuelta-dash
 
 export const PRESIDENCIAL_URL = PROD ? `${BASE}data/presidencial.json` : '/api/presidencial';
 export const HISTORIAL_URL    = PROD ? `${BASE}data/historial.json`    : '/api/historial';
+export const PROYECCION_URL   = PROD ? `${BASE}data/proyeccion.json`   : '/api/proyeccion';
 export const GEOJSON_URL      = `${BASE}peru-departamentos.geojson`;
 
 // El refresco manual (POST /api/refresh) solo existe con backend (dev).

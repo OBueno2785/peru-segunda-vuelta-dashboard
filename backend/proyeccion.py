@@ -20,6 +20,8 @@ import main as backend
 DATA_DIR = Path(__file__).parent / "data"
 ACTAS_DIR = DATA_DIR / "actas"
 OUT = DATA_DIR / "proyeccion.json"
+# Copia estática que consume el frontend en GitHub Pages (igual patrón que build_static.py).
+FRONTEND_OUT = Path(__file__).resolve().parent.parent / "frontend" / "public" / "data" / "proyeccion.json"
 
 # Los dos finalistas; el resto (blanco/nulo/impugnado) no son votos válidos.
 EXCLUIR = {"VOTOS NULOS", "VOTOS EN BLANCO", "VOTOS IMPUGNADOS"}
@@ -52,6 +54,7 @@ def cargar_contabilizado() -> dict:
         "por_partido": {norm(c["partido"]): c["votos"] for c in top},
         "nombres": {norm(c["partido"]): c["partido"] for c in top},
         "candidatos": {norm(c["partido"]): c["candidato"] for c in top},
+        "colores": {norm(c["partido"]): c["color"] for c in top},
         "totales": totales,
     }
 
@@ -111,6 +114,7 @@ def main_run() -> dict:
         return {
             "partido": nombres.get(p, p),
             "candidato": candidatos.get(p, ""),
+            "color": cont["colores"].get(p, "#888888"),
             "contabilizado": cont["por_partido"].get(p, 0),
             "actas_EP": ep["por_partido"].get(p, 0),
             "proyectado": proyectado.get(p, 0),
@@ -151,6 +155,8 @@ def main_run() -> dict:
         "banda_incertidumbre": banda,
     }
     OUT.write_text(json.dumps(resultado, ensure_ascii=False, indent=2), encoding="utf-8")
+    FRONTEND_OUT.parent.mkdir(parents=True, exist_ok=True)
+    FRONTEND_OUT.write_text(json.dumps(resultado, ensure_ascii=False), encoding="utf-8")
     return resultado
 
 
