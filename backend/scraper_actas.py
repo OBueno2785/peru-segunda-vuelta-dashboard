@@ -23,6 +23,7 @@ import argparse
 import asyncio
 import json
 import logging
+import os
 import sys
 import time
 from pathlib import Path
@@ -37,7 +38,9 @@ ID_ELECCION = 10  # presidencial segunda vuelta
 AMBITO = 1        # Perú
 PAGE_SIZE = 100
 TARGET_ESTADOS = {"E", "P"}  # Para envío al JEE, Pendiente
-MAX_WORKERS = 6
+# Pacing configurable (en CI conviene bajarlo: ONPE bloquea ráfagas desde una sola IP).
+MAX_WORKERS = int(os.getenv("ACTAS_WORKERS", "6"))
+DELAY = float(os.getenv("ACTAS_DELAY", "0.15"))  # espera entre distritos
 
 DATA_DIR = Path(__file__).parent / "data"
 ACTAS_DIR = DATA_DIR / "actas"
@@ -88,20 +91,22 @@ def save_progress(progress: dict) -> None:
     PROGRESS_FILE.write_text(json.dumps(progress, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-async def api_get(client: httpx.AsyncClient, path: str, retries: int = 3) -> dict | None:
+async def api_get(client: httpx.AsyncClient, path: str, retries: int = 5) -> dict | None:
+    """GET con recuperación de rate-limit: si ONPE responde el HTML del SPA (sesión perdida),
+    re-prima la sesión y reintenta con backoff exponencial."""
     url = BASE + path
     for attempt in range(retries):
         try:
             r = await client.get(url, headers=API_HDR, timeout=25.0)
-            if "json" not in r.headers.get("content-type", ""):
-                log.warning("No-JSON %s en %s", r.status_code, path[-70:])
-                return None
-            return r.json()
+            if "json" in r.headers.get("content-type", ""):
+                return r.json()
+            log.warning("No-JSON (%s) en %s; re-primando sesión (intento %d/%d)",
+                        r.status_code, path[-60:], attempt + 1, retries)
         except Exception as e:
-            if attempt == retries - 1:
-                log.error("api_get %s: %s", path[-70:], e)
-                return None
-            await asyncio.sleep(0.5 * (attempt + 1))
+            log.warning("api_get %s: %s (intento %d/%d)", path[-60:], e, attempt + 1, retries)
+        if attempt < retries - 1:
+            await asyncio.sleep(min(8.0, 0.8 * (2 ** attempt)))
+            await prime_session(client)
     return None
 
 
@@ -166,11 +171,15 @@ async def process_acta(client, acta_min: dict, dist_dir: Path, progress: dict, w
         progress["stats"]["errors"] += 1
 
 
-async def list_district_actas(client, dist_ubigeo_int: int) -> tuple[list[dict], dict]:
+async def list_district_actas(client, dist_ubigeo_int: int) -> tuple[list[dict], dict, bool]:
+    """Devuelve (actas, counts, ok). ok=False = no se pudo listar (bloqueo/HTML),
+    distinto de un distrito legítimamente vacío (ok=True, actas=[])."""
     r0 = await api_get(client, f"/actas?pagina=0&tamanio={PAGE_SIZE}&idAmbitoGeografico={AMBITO}&idUbigeo={dist_ubigeo_int}")
-    data0 = (r0 or {}).get("data")
+    if r0 is None:
+        return [], {}, False
+    data0 = r0.get("data")
     if not data0:
-        return [], {}
+        return [], {}, True
     counts = {
         "totalRegistros": data0.get("totalRegistros", 0),
         "contabilizada": data0.get("contabilizada", 0),
@@ -183,7 +192,7 @@ async def list_district_actas(client, dist_ubigeo_int: int) -> tuple[list[dict],
         rp = await api_get(client, f"/actas?pagina={page}&tamanio={PAGE_SIZE}&idAmbitoGeografico={AMBITO}&idUbigeo={dist_ubigeo_int}")
         actas.extend(((rp or {}).get("data") or {}).get("content", []))
         await asyncio.sleep(0.1)
-    return actas, counts
+    return actas, counts, True
 
 
 async def process_district(client, dept, prov, dist, progress, want_pdf) -> None:
@@ -191,7 +200,12 @@ async def process_district(client, dept, prov, dist, progress, want_pdf) -> None
     if dist_key in progress["completed_districts"]:
         return
 
-    actas, counts = await list_district_actas(client, int(dist["ubigeo"]))
+    actas, counts, ok = await list_district_actas(client, int(dist["ubigeo"]))
+    if not ok:
+        # Listado bloqueado tras reintentos: NO marcar el distrito como hecho.
+        progress["stats"]["list_fail"] = progress["stats"].get("list_fail", 0) + 1
+        log.error("Distrito sin listar (bloqueo): %s", dist_key)
+        return
     objetivo = [a for a in actas if a.get("codigoEstadoActa") in TARGET_ESTADOS]
 
     if objetivo:
@@ -234,26 +248,39 @@ async def run(only_dept: str | None, want_pdf: bool) -> None:
         deps = await api_get(client, f"/ubigeos/departamentos?idEleccion={ID_ELECCION}&idAmbitoGeografico={AMBITO}")
         if not deps or not deps.get("data"):
             log.error("No se pudieron listar departamentos. Sesión bloqueada?")
-            return
+            return 1
         depts = deps["data"]
         if only_dept:
             up = only_dept.upper()
             depts = [d for d in depts if d["nombre"].upper() == up]
             if not depts:
                 log.error("Departamento '%s' no encontrado", only_dept)
-                return
+                return 1
 
         for dept in depts:
             provs = await api_get(client, f"/ubigeos/provincias?idEleccion={ID_ELECCION}&idAmbitoGeografico={AMBITO}&idUbigeoDepartamento={dept['ubigeo']}")
-            for prov in (provs or {}).get("data", []):
+            if provs is None:
+                progress["stats"]["list_fail"] = progress["stats"].get("list_fail", 0) + 1
+                log.error("Provincias sin listar (bloqueo) en %s", dept["nombre"])
+                continue
+            for prov in provs.get("data", []):
                 dists = await api_get(client, f"/ubigeos/distritos?idEleccion={ID_ELECCION}&idAmbitoGeografico={AMBITO}&idUbigeoProvincia={prov['ubigeo']}")
-                for dist in (dists or {}).get("data", []):
+                if dists is None:
+                    progress["stats"]["list_fail"] = progress["stats"].get("list_fail", 0) + 1
+                    log.error("Distritos sin listar (bloqueo) en %s/%s", dept["nombre"], prov["nombre"])
+                    continue
+                for dist in dists.get("data", []):
                     await process_district(client, dept, prov, dist, progress, want_pdf)
-                    await asyncio.sleep(0.15)
+                    await asyncio.sleep(DELAY)
             log.info(">>> Departamento %s completo. stats=%s", dept["nombre"], progress["stats"])
 
     save_progress(progress)
+    fallos = progress["stats"].get("list_fail", 0)
     log.info("FIN. stats=%s distritos=%d", progress["stats"], len(progress["completed_districts"]))
+    if fallos:
+        log.error("ABORTADO: %d listados bloqueados → datos incompletos, no usar para proyectar.", fallos)
+        return 1
+    return 0
 
 
 def main() -> None:
@@ -261,7 +288,7 @@ def main() -> None:
     ap.add_argument("--dep", help="Limitar a un departamento (p.ej. AMAZONAS) para pruebas")
     ap.add_argument("--no-pdf", action="store_true", help="No descargar PDFs (solo JSON con votos)")
     args = ap.parse_args()
-    asyncio.run(run(args.dep, want_pdf=not args.no_pdf))
+    sys.exit(asyncio.run(run(args.dep, want_pdf=not args.no_pdf)) or 0)
 
 
 if __name__ == "__main__":

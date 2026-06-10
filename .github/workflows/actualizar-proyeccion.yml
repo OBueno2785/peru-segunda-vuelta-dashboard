@@ -33,6 +33,11 @@ jobs:
 
       - name: Descargar actas E/P (solo JSON, sin PDFs)
         working-directory: backend
+        # Pacing suave: ONPE bloquea ráfagas desde una sola IP. Si quedan listados
+        # bloqueados, el scraper sale con código !=0 y el job NO commitea datos parciales.
+        env:
+          ACTAS_WORKERS: "3"
+          ACTAS_DELAY: "0.5"
         run: python scraper_actas.py --no-pdf
 
       - name: Refrescar contabilizado al mismo momento
