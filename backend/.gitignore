@@ -14,3 +14,4 @@ data/ocr_verificacion.json
 data/comparacion_ocr.csv
 scraper_actas.log
 scraper_full.out
+actualizar_proyeccion.run.log

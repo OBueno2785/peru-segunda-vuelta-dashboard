@@ -2,9 +2,11 @@ name: Actualizar proyección (actas JEE)
 
 on:
   workflow_dispatch:
-  schedule:
-    # Cada 6 horas: descarga actas no contabilizadas y regenera la proyección.
-    - cron: "0 */6 * * *"
+  # NOTA: sin cron. ONPE bloquea las IP de datacenter de GitHub (las peticiones
+  # devuelven el HTML del SPA en vez de JSON), así que este job no puede scrapear
+  # desde un runner alojado en la nube. Sirve solo como disparo manual y solo
+  # funcionará desde un runner self-hosted con IP residencial. La automatización
+  # real corre en la máquina local (ver backend/actualizar_proyeccion.ps1).
 
 # Necesita commitear el JSON de proyección al repo.
 permissions:
